@@ -1,9 +1,13 @@
+#%%
 from transformers import GPT2Model, GPT2Tokenizer, AutoTokenizer, AutoModelForCausalLM
 from gensim.models import KeyedVectors
 import torch
 import numpy as np
 
+#%%
 class TextAnalysis:
+    'AI generative poetry class exploring text generation within text embeddings'
+
     def __init__(self, gpt_model_name='gpt2', word2vec_model_path, t5_model_path, device='cpu'):
         self.gpt_tokenizer = GPT2Tokenizer.from_pretrained(gpt_model_name)
         self.gpt_model = GPT2Model.from_pretrained(gpt_model_name)
