@@ -3,7 +3,6 @@ import torch
 import torch.nn.functional as F
 from transformers import GPT2Model, GPT2Tokenizer, AutoTokenizer, AutoModelForCausalLM
 from gensim.models import KeyedVectors
-from tqdm import tqdm
 import numpy as np
 
 class BottleneckT5Autoencoder:
@@ -28,15 +27,15 @@ class BottleneckT5Autoencoder:
         return self.tokenizer.decode(output[0], skip_special_tokens=True)
 
 class TextAnalysis:
-    def __init__(self, gpt_model_name='gpt2', word2vec_model_path, t5_model_path, device='cpu'):
+    def __init__(self, gpt_model_name='gpt2', word2vec_model_path, t5_model_path='thesephist/contra-bottleneck-t5-large-wikipedia'):
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.gpt_tokenizer = GPT2Tokenizer.from_pretrained(gpt_model_name)
-        self.gpt_model = GPT2Model.from_pretrained(gpt_model_name)
+        self.gpt_model = GPT2Model.from_pretrained(gpt_model_name).to(self.device)
         self.word2vec_model = KeyedVectors.load_word2vec_format(word2vec_model_path, binary=True)
-        self.bottleneck_t5 = BottleneckT5Autoencoder(t5_model_path, device)
-        self.device = device
+        self.autoencoder = BottleneckT5Autoencoder(t5_model_path, self.device)
 
     def semantic_complexity_metric(self, text):
-        inputs = self.gpt_tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
+        inputs = self.gpt_tokenizer(text, return_tensors="pt", truncation=True, max_length=512).to(self.device)
         with torch.no_grad():
             outputs = self.gpt_model(**inputs)
         return torch.std(outputs.last_hidden_state, dim=1).mean().item()
@@ -51,10 +50,10 @@ class TextAnalysis:
         for i, (word, _) in enumerate(closest_words):
             generated_sentences[word] = []
             for j in range(sentences_per_pair):
-                latent_anchor = self.bottleneck_t5.embed(anchor_word)
-                latent_word = self.bottleneck_t5.embed(word)
+                latent_anchor = self.autoencoder.embed(anchor_word)
+                latent_word = self.autoencoder.embed(word)
                 mixed_latent = (latent_anchor + latent_word) / 2
-                sentence = self.bottleneck_t5.generate_from_latent(mixed_latent)
+                sentence = self.autoencoder.generate_from_latent(mixed_latent)
                 complexity = self.semantic_complexity_metric(sentence)
                 complexity_matrix[i, j] = complexity
                 generated_sentences[word].append(sentence)
